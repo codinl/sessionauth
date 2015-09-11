@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
-	"github.com/martini-contrib/sessions"
-	"log"
+	"github.com/codinl/session"
 	"net/http"
+	"github.com/codinl/go-logger"
 )
 
 // These are the default configuration values for this package. They
@@ -44,7 +44,7 @@ type User interface {
 	UniqueId() interface{}
 
 	// Populate this user object with values
-	GetById(id interface{}) error
+	GetById(id interface{}) (User, error)
 }
 
 // SessionUser will try to read a unique user ID out of the session. Then it tries
@@ -54,18 +54,25 @@ type User interface {
 // The newUser() function should provide a valid 0value structure for the caller's
 // user type.
 func SessionUser(newUser func() User) martini.Handler {
-	return func(s sessions.Session, c martini.Context, l *log.Logger) {
+	return func(s session.Store, c martini.Context) {
 		userId := s.Get(SessionKey)
 		user := newUser()
 
+		logger.Debug("userId=", userId)
+
 		if userId != nil {
-			err := user.GetById(userId)
+			var err error
+			user, err = user.GetById(userId)
+			logger.Debug("user=",user)
 			if err != nil {
-				l.Printf("Login Error: %v\n", err)
+				logger.Printf("Login Error: %v\n", err)
 			} else {
 				user.Login()
+				logger.Debug("user=",user)
 			}
 		}
+
+		logger.Debug("user=",user)
 
 		c.MapTo(user, (*User)(nil))
 	}
@@ -74,13 +81,14 @@ func SessionUser(newUser func() User) martini.Handler {
 // AuthenticateSession will mark the session and user object as authenticated. Then
 // the Login() user function will be called. This function should be called after
 // you have validated a user.
-func AuthenticateSession(s sessions.Session, user User) error {
+func AuthenticateSession(s session.Store, user User) error {
+	logger.Debug("AuthenticateSession user=", user)
 	user.Login()
 	return UpdateUser(s, user)
 }
 
 // Logout will clear out the session and call the Logout() user function.
-func Logout(s sessions.Session, user User) {
+func Logout(s session.Store, user User) {
 	user.Logout()
 	s.Delete(SessionKey)
 }
@@ -90,6 +98,7 @@ func Logout(s sessions.Session, user User) {
 // authenticated, they will be redirected to /login with the "next" get parameter
 // set to the attempted URL.
 func LoginRequired(r render.Render, user User, req *http.Request) {
+	logger.Debug("LoginRequired user=", user.UniqueId())
 	if user.IsAuthenticated() == false {
 		path := fmt.Sprintf("%s?%s=%s", RedirectUrl, RedirectParam, req.URL.Path)
 		r.Redirect(path, 302)
@@ -98,7 +107,9 @@ func LoginRequired(r render.Render, user User, req *http.Request) {
 
 // UpdateUser updates the User object stored in the session. This is useful incase a change
 // is made to the user model that needs to persist across requests.
-func UpdateUser(s sessions.Session, user User) error {
+func UpdateUser(s session.Store, user User) error {
+	logger.Debug("UpdateUser session.Store=", s)
+	logger.Debug("UpdateUser user=", user)
 	s.Set(SessionKey, user.UniqueId())
 	return nil
 }
