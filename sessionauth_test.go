@@ -9,39 +9,39 @@ import (
 	"testing"
 )
 
-type TestUser struct {
+type TestAccount struct {
 	Id            int    `json:"id"`
 	Name          string `json:"name"`
 	Age           int    `json:"age"`
 	authenticated bool   `json:"-"`
 }
 
-func (u *TestUser) IsAuthenticated() bool {
+func (u *TestAccount) IsAuthenticated() bool {
 	return u.authenticated
 }
 
-func (u *TestUser) Login() {
+func (u *TestAccount) Login() {
 	u.authenticated = true
 }
 
-func (u *TestUser) Logout() {
+func (u *TestAccount) Logout() {
 	u.authenticated = false
 }
 
-func (u *TestUser) UniqueId() interface{} {
+func (u *TestAccount) UniqueId() interface{} {
 	return u.Id
 }
 
-func (u *TestUser) GetById(id interface{}) error {
+func (u *TestAccount) GetById(id interface{}) error {
 	u.Id = id.(int)
-	u.Name = "My Test User"
+	u.Name = "My Test Account"
 	u.Age = 42
 
 	return nil
 }
 
-func NewUser() User {
-	return &TestUser{}
+func NewAccount() Account {
+	return &TestAccount{}
 }
 
 func TestAuthenticateSession(t *testing.T) {
@@ -50,22 +50,22 @@ func TestAuthenticateSession(t *testing.T) {
 
 	m.Use(render.Renderer())
 	m.Use(sessions.Sessions("my_session", store))
-	m.Use(SessionUser(NewUser))
+	m.Use(SessionAccount(NewAccount))
 
-	m.Get("/setauth", func(session sessions.Session, user User) string {
-		err := AuthenticateSession(session, user)
+	m.Get("/setauth", func(session sessions.Session, account Account) string {
+		err := AuthenticateSession(session, account)
 		if err != nil {
 			t.Error(err)
 		}
 		return "OK"
 	})
 
-	m.Get("/private", LoginRequired, func(session sessions.Session, user User) string {
+	m.Get("/private", LoginRequired, func(session sessions.Session, account Account) string {
 		return "OK"
 	})
 
-	m.Get("/logout", LoginRequired, func(session sessions.Session, user User) string {
-		Logout(session, user)
+	m.Get("/logout", LoginRequired, func(session sessions.Session, account Account) string {
+		Logout(session, account)
 		return "OK"
 	})
 
