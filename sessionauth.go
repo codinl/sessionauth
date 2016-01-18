@@ -24,10 +24,9 @@ var (
 	// with the page the account was trying to visit before they were
 	// intercepted.
 	RedirectParam string = "next"
-
-	// SessionKey is the key containing the unique ID in your session
-	SessionKey string = "AUTHUNIQUEID"
 )
+
+const AUTH_UNIQUE_ID string = "AUTH_UNIQUE_ID"
 
 // Account defines all the functions necessary to work with the account's authentication.
 // The caller should implement these functions for whatever system of authentication
@@ -59,24 +58,19 @@ type Account interface {
 // account type.
 func SessionAccount(newAccount func() Account) martini.Handler {
 	return func(s session.Store, c martini.Context) {
-		userId := s.Get(SessionKey)
+		userId := s.Get(AUTH_UNIQUE_ID)
 		account := newAccount()
-
-		logger.Debug("userId=", userId)
 
 		if userId != nil {
 			var err error
 			account, err = account.GetById(userId)
 			logger.Debug("account=", account)
 			if err != nil {
-				logger.Printf("Login Error: %v\n", err)
+				logger.Error(err)
 			} else {
 				account.Login()
-				logger.Debug("account=", account)
 			}
 		}
-
-		logger.Debug("account=", account)
 
 		c.MapTo(account, (*Account)(nil))
 	}
@@ -94,7 +88,7 @@ func AuthenticateSession(s session.Store, account Account) error {
 // Logout will clear out the session and call the Logout() account function.
 func Logout(s session.Store, account Account) {
 	account.Logout()
-	s.Delete(SessionKey)
+	s.Delete(AUTH_UNIQUE_ID)
 }
 
 // LoginRequired verifies that the current account is authenticated. Any routes that
@@ -102,7 +96,6 @@ func Logout(s session.Store, account Account) {
 // authenticated, they will be redirected to /login with the "next" get parameter
 // set to the attempted URL.
 func LoginRequired(r render.Render, account Account, req *http.Request) {
-	logger.Debug("LoginRequired account=", account.UniqueId())
 	if account.IsAuthenticated() == false {
 		path := fmt.Sprintf("%s?%s=%s", RedirectUrl, RedirectParam, req.URL.Path)
 		r.Redirect(path, 302)
@@ -110,7 +103,6 @@ func LoginRequired(r render.Render, account Account, req *http.Request) {
 }
 
 func AdminRequired(r render.Render, account Account, req *http.Request) {
-	logger.Debug("AdminRequired account=", account.UniqueId())
 	if account.IsAuthenticated() == false || account.IsAdmin() == false {
 		path := fmt.Sprintf("%s?%s=%s", AdminRedirectUrl, RedirectParam, req.URL.Path)
 		r.Redirect(path, 302)
@@ -120,8 +112,6 @@ func AdminRequired(r render.Render, account Account, req *http.Request) {
 // UpdateUser updates the Account object stored in the session. This is useful incase a change
 // is made to the account model that needs to persist across requests.
 func Update(s session.Store, account Account) error {
-	logger.Debug("Update session.Store=", s)
-	logger.Debug("Update account=", account)
-	s.Set(SessionKey, account.UniqueId())
+	s.Set(AUTH_UNIQUE_ID, account.UniqueId())
 	return nil
 }
